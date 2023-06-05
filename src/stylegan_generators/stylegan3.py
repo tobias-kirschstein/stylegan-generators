@@ -72,6 +72,8 @@ class FullyConnectedLayer(torch.nn.Module):
         lr_multiplier   = 1,        # Learning rate multiplier.
         weight_init     = 1,        # Initial standard deviation of the weight tensor.
         bias_init       = 0,        # Initial value of the additive bias.
+
+        impl            = 'cuda',
     ):
         super().__init__()
         self.in_features = in_features
@@ -82,6 +84,7 @@ class FullyConnectedLayer(torch.nn.Module):
         self.bias = torch.nn.Parameter(torch.from_numpy(bias_init / lr_multiplier)) if bias else None
         self.weight_gain = lr_multiplier / np.sqrt(in_features)
         self.bias_gain = lr_multiplier
+        self.impl = impl
 
     def forward(self, x):
         w = self.weight.to(x.dtype) * self.weight_gain
@@ -94,7 +97,7 @@ class FullyConnectedLayer(torch.nn.Module):
             x = torch.addmm(b.unsqueeze(0), x, w.t())
         else:
             x = x.matmul(w.t())
-            x = bias_act.bias_act(x, b, act=self.activation)
+            x = bias_act.bias_act(x, b, act=self.activation, impl=self.impl)
         return x
 
     def extra_repr(self):
@@ -111,6 +114,8 @@ class MappingNetwork(torch.nn.Module):
         num_layers      = 2,        # Number of mapping layers.
         lr_multiplier   = 0.01,     # Learning rate multiplier for the mapping layers.
         w_avg_beta      = 0.998,    # Decay for tracking the moving average of W during training.
+
+        impl            = 'cuda',
     ):
         super().__init__()
         self.z_dim = z_dim
@@ -121,10 +126,11 @@ class MappingNetwork(torch.nn.Module):
         self.w_avg_beta = w_avg_beta
 
         # Construct layers.
-        self.embed = FullyConnectedLayer(self.c_dim, self.w_dim) if self.c_dim > 0 else None
+        self.embed = FullyConnectedLayer(self.c_dim, self.w_dim, impl=impl) if self.c_dim > 0 else None
         features = [self.z_dim + (self.w_dim if self.c_dim > 0 else 0)] + [self.w_dim] * self.num_layers
         for idx, in_features, out_features in zip(range(num_layers), features[:-1], features[1:]):
-            layer = FullyConnectedLayer(in_features, out_features, activation='lrelu', lr_multiplier=lr_multiplier)
+            layer = FullyConnectedLayer(in_features, out_features, activation='lrelu', lr_multiplier=lr_multiplier,
+                                        impl=impl)
             setattr(self, f'fc{idx}', layer)
         self.register_buffer('w_avg', torch.zeros([w_dim]))
 
@@ -168,6 +174,8 @@ class SynthesisInput(torch.nn.Module):
         size,           # Output spatial size: int or [width, height].
         sampling_rate,  # Output sampling rate.
         bandwidth,      # Output bandwidth.
+
+        impl = 'cuda'
     ):
         super().__init__()
         self.w_dim = w_dim
@@ -185,7 +193,7 @@ class SynthesisInput(torch.nn.Module):
 
         # Setup parameters and buffers.
         self.weight = torch.nn.Parameter(torch.randn([self.channels, self.channels]))
-        self.affine = FullyConnectedLayer(w_dim, 4, weight_init=0, bias_init=[1,0,0,0])
+        self.affine = FullyConnectedLayer(w_dim, 4, weight_init=0, bias_init=[1,0,0,0], impl=impl)
         self.register_buffer('transform', torch.eye(3, 3)) # User-specified inverse transform wrt. resulting image.
         self.register_buffer('freqs', freqs)
         self.register_buffer('phases', phases)
@@ -270,6 +278,8 @@ class SynthesisLayer(torch.nn.Module):
         use_radial_filters  = False,    # Use radially symmetric downsampling filter? Ignored for critically sampled layers.
         conv_clamp          = 256,      # Clamp the output to [-X, +X], None = disable clamping.
         magnitude_ema_beta  = 0.999,    # Decay rate for the moving average of input magnitudes.
+
+        impl                = 'cuda',
     ):
         super().__init__()
         self.w_dim = w_dim
@@ -290,9 +300,10 @@ class SynthesisLayer(torch.nn.Module):
         self.conv_kernel = 1 if is_torgb else conv_kernel
         self.conv_clamp = conv_clamp
         self.magnitude_ema_beta = magnitude_ema_beta
+        self.impl = impl
 
         # Setup parameters and buffers.
-        self.affine = FullyConnectedLayer(self.w_dim, self.in_channels, bias_init=1)
+        self.affine = FullyConnectedLayer(self.w_dim, self.in_channels, bias_init=1, impl=impl)
         self.weight = torch.nn.Parameter(torch.randn([self.out_channels, self.in_channels, self.conv_kernel, self.conv_kernel]))
         self.bias = torch.nn.Parameter(torch.zeros([self.out_channels]))
         self.register_buffer('magnitude_ema', torch.ones([]))
@@ -347,7 +358,8 @@ class SynthesisLayer(torch.nn.Module):
         gain = 1 if self.is_torgb else np.sqrt(2)
         slope = 1 if self.is_torgb else 0.2
         x = filtered_lrelu.filtered_lrelu(x=x, fu=self.up_filter, fd=self.down_filter, b=self.bias.to(x.dtype),
-            up=self.up_factor, down=self.down_factor, padding=self.padding, gain=gain, slope=slope, clamp=self.conv_clamp)
+            up=self.up_factor, down=self.down_factor, padding=self.padding, gain=gain, slope=slope, clamp=self.conv_clamp,
+                                          impl=self.impl)
 
         # Ensure correct shape and dtype.
         misc.assert_shape(x, [None, self.out_channels, int(self.out_size[1]), int(self.out_size[0])])
@@ -404,6 +416,7 @@ class SynthesisNetwork(torch.nn.Module):
         margin_size         = 10,       # Number of additional pixels outside the image.
         output_scale        = 0.25,     # Scale factor for the output image.
         num_fp16_res        = 4,        # Use FP16 for the N highest resolutions.
+        impl                = 'cuda',
         **layer_kwargs,                 # Arguments for SynthesisLayer.
     ):
         super().__init__()
@@ -435,7 +448,8 @@ class SynthesisNetwork(torch.nn.Module):
         # Construct layers.
         self.input = SynthesisInput(
             w_dim=self.w_dim, channels=int(channels[0]), size=int(sizes[0]),
-            sampling_rate=sampling_rates[0], bandwidth=cutoffs[0])
+            sampling_rate=sampling_rates[0], bandwidth=cutoffs[0],
+            impl=impl)
         self.layer_names = []
         for idx in range(self.num_layers + 1):
             prev = max(idx - 1, 0)
@@ -449,6 +463,7 @@ class SynthesisNetwork(torch.nn.Module):
                 in_sampling_rate=int(sampling_rates[prev]), out_sampling_rate=int(sampling_rates[idx]),
                 in_cutoff=cutoffs[prev], out_cutoff=cutoffs[idx],
                 in_half_width=half_widths[prev], out_half_width=half_widths[idx],
+                impl=impl,
                 **layer_kwargs)
             name = f'L{idx}_{layer.out_size[0]}_{layer.out_channels}'
             setattr(self, name, layer)
@@ -487,6 +502,7 @@ class Generator(torch.nn.Module):
         img_resolution,             # Output resolution.
         img_channels,               # Number of output color channels.
         mapping_kwargs      = {},   # Arguments for MappingNetwork.
+        impl                = 'impl'
         **synthesis_kwargs,         # Arguments for SynthesisNetwork.
     ):
         super().__init__()
@@ -495,9 +511,11 @@ class Generator(torch.nn.Module):
         self.w_dim = w_dim
         self.img_resolution = img_resolution
         self.img_channels = img_channels
-        self.synthesis = SynthesisNetwork(w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels, **synthesis_kwargs)
+        self.synthesis = SynthesisNetwork(w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels,
+                                          impl=impl, **synthesis_kwargs)
         self.num_ws = self.synthesis.num_ws
-        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
+        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim,
+                                      impl=impl, num_ws=self.num_ws, **mapping_kwargs)
 
     def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, update_emas=False, **synthesis_kwargs):
         ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff, update_emas=update_emas)

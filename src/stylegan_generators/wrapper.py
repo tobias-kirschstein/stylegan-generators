@@ -42,7 +42,7 @@ class StyleGAN3Generator(nn.Module):
                                       **synthesis_kwargs)
 
         self._params_std = 0.2
-        self.reset_parameters()
+        #self.reset_parameters()
 
     def _init_mapping_weights(self, params: nn.Parameter):
         nn.init.normal_(params, 0.0,
