@@ -11,7 +11,7 @@ import contextlib
 import numpy as np
 import torch
 import warnings
-import stylegan3_generator.dnnlib as dnnlib
+import stylegan_generators.dnnlib as dnnlib
 
 #----------------------------------------------------------------------------
 # Cached construction of constant tensors. Avoids CPU=>GPU copy when the

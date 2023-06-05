@@ -11,7 +11,7 @@
 import os
 import numpy as np
 import torch
-import stylegan3_generator.dnnlib as dnnlib
+import stylegan_generators.dnnlib as dnnlib
 
 from .. import custom_ops
 from .. import misc

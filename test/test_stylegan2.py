@@ -1,15 +1,15 @@
 from unittest import TestCase
 
 import torch
-import torch.nn as nn
-from tqdm import tqdm
-
-from stylegan_generators.generator import Generator
+from torch import nn
 from torch.nn import MSELoss
 from torch.optim import Adam
+from tqdm import tqdm
+
+from stylegan_generators.stylegan2 import Generator
 
 
-class GeneratorTest(TestCase):
+class StyleGAN2Test(TestCase):
 
     def test_forward(self):
         B = 5

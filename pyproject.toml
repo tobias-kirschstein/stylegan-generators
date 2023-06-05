@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "stylegan3_generator"
+name = "stylegan_generators"
 version = "0.0.1"
 description = "<<<ENTER_DESCRIPTION>>>"
 authors = [
@@ -24,7 +24,8 @@ dependencies = [
     "scipy",
     "torch",
     "requests",
-    "jaxtyping"
+    "jaxtyping",
+    "tqdm"
 ]
 
 [project.optional-dependencies]
@@ -37,4 +38,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["stylegan3_generator*"]  # Keep the '*', otherwise submodules are not found
+include = ["stylegan_generators*"]  # Keep the '*', otherwise submodules are not found

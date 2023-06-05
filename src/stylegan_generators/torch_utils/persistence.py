@@ -20,7 +20,7 @@ import inspect
 import copy
 import uuid
 import types
-import stylegan3_generator.dnnlib as dnnlib
+import stylegan_generators.dnnlib as dnnlib
 
 #----------------------------------------------------------------------------
 
