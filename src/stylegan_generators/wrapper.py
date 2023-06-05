@@ -13,6 +13,7 @@ class StyleGAN3Generator(nn.Module):
                  img_resolution,
                  img_channels,
                  mapping_kwargs={},
+                 impl: str = 'cuda',
                  **synthesis_kwargs,
                  ):
         """
@@ -39,6 +40,7 @@ class StyleGAN3Generator(nn.Module):
                                       img_resolution,
                                       img_channels,
                                       mapping_kwargs=mapping_kwargs,
+                                      impl=impl,
                                       **synthesis_kwargs)
 
         self._params_std = 0.2
