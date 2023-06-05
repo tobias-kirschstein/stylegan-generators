@@ -54,7 +54,8 @@ def modulated_conv2d(
 
     # Pre-normalize inputs to avoid FP16 overflow.
     if x.dtype == torch.float16 and demodulate:
-        weight = weight * (1 / np.sqrt(in_channels * kh * kw) / weight.norm(float('inf'), dim=[1,2,3], keepdim=True)) # max_Ikk
+        # weight = weight * (1 / np.sqrt(in_channels * kh * kw) / weight.norm(float('inf'), dim=[1,2,3], keepdim=True)) # max_Ikk
+        weight = weight * (1 / torch.tensor(in_channels * kh * kw).sqrt() / weight.norm(float('inf'), dim=[1,2,3], keepdim=True)) # max_Ikk
         styles = styles / styles.norm(float('inf'), dim=1, keepdim=True) # max_I
 
     # Calculate per-sample weights and demodulation coefficients.
