@@ -82,7 +82,8 @@ class FullyConnectedLayer(torch.nn.Module):
         self.weight = torch.nn.Parameter(torch.randn([out_features, in_features]) * (weight_init / lr_multiplier))
         bias_init = np.broadcast_to(np.asarray(bias_init, dtype=np.float32), [out_features])
         self.bias = torch.nn.Parameter(torch.from_numpy(bias_init / lr_multiplier)) if bias else None
-        self.weight_gain = lr_multiplier / np.sqrt(in_features)
+        # self.weight_gain = lr_multiplier / np.sqrt(in_features)
+        self.weight_gain = lr_multiplier / torch.tensor(in_features).sqrt()
         self.bias_gain = lr_multiplier
         self.impl = impl
 
@@ -237,7 +238,8 @@ class SynthesisInput(torch.nn.Module):
         x = x * amplitudes.unsqueeze(1).unsqueeze(2)
 
         # Apply trainable mapping.
-        weight = self.weight / np.sqrt(self.channels)
+        # weight = self.weight / np.sqrt(self.channels)
+        weight = self.weight / torch.tensor(self.channels).sqrt()
         x = x @ weight.t()
 
         # Ensure correct shape.
@@ -346,7 +348,8 @@ class SynthesisLayer(torch.nn.Module):
         # Execute affine layer.
         styles = self.affine(w)
         if self.is_torgb:
-            weight_gain = 1 / np.sqrt(self.in_channels * (self.conv_kernel ** 2))
+            # weight_gain = 1 / np.sqrt(self.in_channels * (self.conv_kernel ** 2))
+            weight_gain = 1 / torch.tensor(self.in_channels * (self.conv_kernel ** 2)).sqrt()
             styles = styles * weight_gain
 
         # Execute modulated conv2d.
@@ -355,7 +358,7 @@ class SynthesisLayer(torch.nn.Module):
             padding=self.conv_kernel-1, demodulate=(not self.is_torgb), input_gain=input_gain)
 
         # Execute bias, filtered leaky ReLU, and clamping.
-        gain = 1 if self.is_torgb else np.sqrt(2)
+        gain = 1 if self.is_torgb else torch.tensor(2).sqrt()
         slope = 1 if self.is_torgb else 0.2
         x = filtered_lrelu.filtered_lrelu(x=x, fu=self.up_filter, fd=self.down_filter, b=self.bias.to(x.dtype),
             up=self.up_factor, down=self.down_factor, padding=self.padding, gain=gain, slope=slope, clamp=self.conv_clamp,
