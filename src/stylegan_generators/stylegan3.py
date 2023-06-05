@@ -502,7 +502,7 @@ class Generator(torch.nn.Module):
         img_resolution,             # Output resolution.
         img_channels,               # Number of output color channels.
         mapping_kwargs      = {},   # Arguments for MappingNetwork.
-        impl                = 'impl'
+        impl                = 'impl',
         **synthesis_kwargs,         # Arguments for SynthesisNetwork.
     ):
         super().__init__()
