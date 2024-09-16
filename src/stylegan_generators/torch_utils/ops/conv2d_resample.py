@@ -122,7 +122,7 @@ def conv2d_resample(x, w, f=None, up=1, down=1, padding=0, groups=1, flip_weight
         py1 -= kh - up
         pxt = max(min(-px0, -px1), 0)
         pyt = max(min(-py0, -py1), 0)
-        x = _conv2d_wrapper(x=x, w=w, stride=up, padding=[pyt,pxt], groups=groups, transpose=True, flip_weight=(not flip_weight))
+        x = _conv2d_wrapper(x=x, w=w, stride=up, padding=(pyt,pxt), groups=groups, transpose=True, flip_weight=(not flip_weight))
         x = upfirdn2d.upfirdn2d(x=x, f=f, padding=[px0+pxt,px1+pxt,py0+pyt,py1+pyt], gain=up**2, flip_filter=flip_filter)
         if down > 1:
             x = upfirdn2d.upfirdn2d(x=x, f=f, down=down, flip_filter=flip_filter)
