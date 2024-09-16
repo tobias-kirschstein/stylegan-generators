@@ -131,10 +131,16 @@ def get_plugin(module_name, sources, headers=None, source_dir=None, **build_kwar
                     shutil.rmtree(tmpdir)
                     if not os.path.isdir(cached_build_dir): raise
 
-            # Compile.
-            cached_sources = [os.path.join(cached_build_dir, os.path.basename(fname)) for fname in sources]
-            torch.utils.cpp_extension.load(name=module_name, build_directory=cached_build_dir,
-                verbose=verbose_build, sources=cached_sources, **build_kwargs)
+            try:
+                import sys
+                sys.path.append(cached_build_dir)
+                importlib.import_module(module_name)
+            except ImportError:
+                # Only compile kernel again if we could not import the module already
+                # Compile.
+                cached_sources = [os.path.join(cached_build_dir, os.path.basename(fname)) for fname in sources]
+                torch.utils.cpp_extension.load(name=module_name, build_directory=cached_build_dir,
+                    verbose=verbose_build, sources=cached_sources, **build_kwargs)
         else:
             torch.utils.cpp_extension.load(name=module_name, verbose=verbose_build, sources=sources, **build_kwargs)
 
